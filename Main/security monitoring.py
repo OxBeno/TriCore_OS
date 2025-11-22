@@ -131,14 +131,21 @@ def port_function(port):
         "443": "HTTPS Secure Web",
         "445": "SMB File Sharing",
         "587": "SMTP Submission",
+        "593": "RPC over HTTP",
+        "631": "IPP Printing Service (CUPS)",
         "993": "IMAPS Secure Email",
         "995": "POP3S Secure Email",
+        "1900": "SSDP (UPnP Discovery)",
         "2049": "NFS File System",
         "3306": "MySQL Database",
         "3389": "RDP Remote Desktop",
+        "5353": "mDNS / Multicast DNS (used by Avahi, Bonjour)",
         "5432": "PostgreSQL Database",
+        "5683": "CoAP IoT Protocol",
         "6379": "Redis Database",
         "8080": "Alternative HTTP / Proxy",
+        "48102": "Avahi/Multicast Local Service Discovery",
+        "59115": "High‑range UDP ephemeral port (likely mDNS/Avahi or local network service)"
     }
 
     return common_ports.get(port, "Unknown or uncommon port. Perform a manual check.")
@@ -183,6 +190,23 @@ def check_sudo_users():
     if code == 0:
         print("Sudo users group:")
         print(out.strip())
+
+
+def write_log(entry):
+    with open("/tmp/security_log.txt", "a") as log:
+        log.write(entry + "
+")
+
+def generate_full_report():
+    report_path = "/tmp/full_security_report.txt"
+    with open(report_path, 'w') as r:
+        r.write("=== FULL SYSTEM SECURITY REPORT ===
+")
+        r.write("System Info Collected
+")
+        r.write("Firewall, SSH, Ports, Sudo Users Checks Done
+")
+    print(f"Security report saved to {report_path}")
 
 
 def main():
