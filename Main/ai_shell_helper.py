@@ -5,15 +5,18 @@ from typing import Union
 import requests
 import sys
 import json
+import google.generativeai as genai
+import sys
 
 # This is the API endpoint for the Gemini 2.5 Flash model
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key="
+API_KEY = "YOUR_API_KEY"
 
-API_KEY = "AIzaSyBWHGGVBR4zNMro603V-UfddGHMqJjk5yw"
+# إعداد المكتبة
+genai.configure(api_key=API_KEY)
 
-# This system prompt is CRITICAL.
-# It tells the AI to ONLY return a shell command.
-# (ده البرومبت الديفولت)
+MODEL_NAME = "gemini-2.5-flash"
+
+
 DEFAULT_SYSTEM_PROMPT = (
     "You are an expert on Linux, bash, and zsh shell commands. "
     "Your sole purpose is to receive a natural language query and return "
@@ -24,8 +27,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "return a comment starting with #: \n# Cannot fulfill request."
 )
 
-def run_data_analysis_agent(file_path):
-    """(ملحوظة: الوظيفة دي مبقاش ليها استخدام مباشر من هنا، بس هنسيبها)"""
+def run_data_analysis_agent(file_path): #this is usless for now
     if not os.path.exists(file_path):
         return f"Error: File '{file_path}' does not exist."
 
@@ -58,66 +60,32 @@ def run_security_monitor():
     """Run security monitoring - placeholder for future implementation"""
     return "# Security monitor received request.\n# Note: Security monitoring features are under development.\n# This is a placeholder for future security features."
 
-# --- (*** التعديل هنا ***) ---
-def get_shell_command(query, system_prompt_override=None):
-    """
-    Calls the Gemini API to get a shell command or an explanation.
-    (جديد) بيستقبل برومبت مخصوص لو موجود
-    """
-    
-    # --- (جديد) تحديد البرومبت اللي هيتبعت ---
-    if system_prompt_override:
-        current_system_prompt = system_prompt_override
-    else:
-        current_system_prompt = DEFAULT_SYSTEM_PROMPT
 
-    # --- (*** تم الحذف ***) ---
-    # (تم شيل الكود القديم بتاع "make data analysis" لأن الـ GUI هو اللي بقى مسؤول عن ده)
-    # if query.startswith('make data analysis '):
-    #     ...
-        
-    # (جديد) لو الكويري هي "run quick scan" (بتاعة زرار السيكيورتي)
-    if query == "run quick scan":
+def get_shell_command(query, system_prompt_override=None):
+ 
+    if query.strip() == "run quick scan":
         return run_security_monitor()
 
-    headers = {"Content-Type": "application/json"}
-
-    payload = {
-        "contents": [
-            {
-                "parts": [{"text": query}]
-            }
-        ],
-        "systemInstruction": {
-            # (جديد) استخدم البرومبت اللي اتحدد
-            "parts": [{"text": current_system_prompt}]
-        }
-    }
+    #set the system prompt
+    current_system_prompt = system_prompt_override if system_prompt_override else DEFAULT_SYSTEM_PROMPT
 
     try:
-        response = requests.post(f"{API_URL}{API_KEY}", headers=headers, data=json.dumps(payload), timeout=10)
+        #start the model
+        model = genai.GenerativeModel(
+            model_name=MODEL_NAME,
+            system_instruction=current_system_prompt
+        )
 
-        if response.status_code != 200:
-            return f"# Error: API request failed with status {response.status_code}\n# {response.text}"
+        response = model.generate_content(query)
+        
+        #clean the response
+        command = response.text.strip()
+        command = command.replace("```powershell", "").replace("```bash", "").replace("```", "").strip()
+        
+        return command
 
-        response_json = response.json()
-
-        if (
-            "candidates" in response_json and
-            len(response_json["candidates"]) > 0 and
-            "content" in response_json["candidates"][0] and
-            "parts" in response_json["candidates"][0]["content"] and
-            len(response_json["candidates"][0]["content"]["parts"]) > 0 and
-            "text" in response_json["candidates"][0]["content"]["parts"][0]
-        ):
-            return response_json["candidates"][0]["content"]["parts"][0]["text"]
-        else:
-            return "# Error: Could not parse AI response."
-
-    except requests.exceptions.RequestException as e:
-        return f"# Error: Network request failed: {e}"
     except Exception as e:
-        return f"# Error: An unexpected error occurred: {e}"
+        return f"# Error: {str(e)}"
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -128,3 +96,16 @@ if __name__ == "__main__":
         user_query = " ".join(sys.argv[1:])
         command = get_shell_command(user_query)
         print(command)
+
+
+
+
+
+
+
+
+
+
+
+
+
