@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 OS Security Hardening Script
-Simple security assessment and hardening tool
+Simple security assessment and hardening tool (Enhanced)
 """
 
 import os
@@ -30,7 +30,7 @@ def get_system_info():
     """Gather system information"""
     print("Collecting system information...")
     system = platform.system()
-    
+
     try:
         with open('/etc/os-release', 'r') as f:
             lines = f.readlines()
@@ -42,7 +42,7 @@ def get_system_info():
         distro = distro_info.get('PRETTY_NAME', 'Unknown')
     except:
         distro = "Unknown"
-    
+
     print(f"System: {system}")
     print(f"Distribution: {distro}")
     return system
@@ -50,17 +50,102 @@ def get_system_info():
 def update_system():
     """Update the system packages"""
     print("Updating system...")
-    
+
     code, out, err = run_command("apt update && apt upgrade -y")
     if code == 0:
         print("System updated successfully")
     else:
         print("Failed to update system")
 
+# ====================== ENHANCED OPEN PORTS SECTION ======================
+
+def scan_open_ports():
+    """Scan for open ports and allow selecting ports for detailed info"""
+    print("Scanning open ports...")
+
+    print("\n=== Listening Ports ===")
+    code, out, err = run_command("ss -tulnp")
+    open_ports_map = {}
+
+    if code == 0 and out.strip():
+        lines = out.strip().split('\n')
+        header = True
+        for line in lines:
+            if header:
+                header = False
+                continue
+
+            parts = line.split()
+            if len(parts) >= 5:
+                proto = parts[0]
+                local_addr = parts[4]
+
+                if ':' in local_addr:
+                    port = local_addr.split(':')[-1]
+                    if port.isdigit():
+                        open_ports_map[port] = proto
+
+        print("\nOpen Ports:")
+        for port, proto in open_ports_map.items():
+            print(f"  Port {port} ({proto})")
+    else:
+        print("No open ports found or command failed")
+        return
+
+    # Allow selecting a port for detailed explanation
+    while True:
+        print("\nSelect a port number to view its function or type 'exit' to go back:")
+        choice = input("Port: ")
+
+        if choice.lower() == 'exit':
+            break
+        elif choice in open_ports_map:
+            print(f"\nDetails for port {choice}:")
+            print(port_function(choice))
+        else:
+            print("Invalid port or port not in open list.")
+
+
+def port_function(port):
+    """Return the purpose of a given port number"""
+    common_ports = {
+        "20": "FTP Data Transfer",
+        "21": "FTP Control",
+        "22": "SSH - Secure Shell Remote Login",
+        "23": "Telnet (Unsecure Remote Login)",
+        "25": "SMTP Mail Transfer",
+        "53": "DNS Domain Name Service",
+        "67": "DHCP Server",
+        "68": "DHCP Client",
+        "69": "TFTP",
+        "80": "HTTP Web Traffic",
+        "110": "POP3 Email",
+        "123": "NTP Time Sync",
+        "135": "Microsoft RPC",
+        "137": "NetBIOS Name Service",
+        "138": "NetBIOS Datagram",
+        "139": "NetBIOS Session",
+        "143": "IMAP Email",
+        "161": "SNMP Monitoring",
+        "389": "LDAP Directory Service",
+        "443": "HTTPS Secure Web",
+        "445": "SMB File Sharing",
+        "587": "SMTP Submission",
+        "993": "IMAPS Secure Email",
+        "995": "POP3S Secure Email",
+        "2049": "NFS File System",
+        "3306": "MySQL Database",
+        "3389": "RDP Remote Desktop",
+        "5432": "PostgreSQL Database",
+        "6379": "Redis Database",
+        "8080": "Alternative HTTP / Proxy",
+    }
+
+    return common_ports.get(port, "Unknown or uncommon port. Perform a manual check.")
+# ========================================================================
+
 def check_firewall():
-    """Check firewall status"""
     print("Checking firewall...")
-    
     code, out, err = run_command("ufw status")
     if "inactive" in out:
         print("Firewall is inactive")
@@ -71,138 +156,52 @@ def check_firewall():
     else:
         print("Firewall is active")
 
+
 def check_ssh_security():
-    """Check SSH security settings"""
     print("Checking SSH configuration...")
-    
     ssh_config = "/etc/ssh/sshd_config"
     if os.path.exists(ssh_config):
         with open(ssh_config, 'r') as f:
             content = f.read()
-            
+
         security_settings = {
             "PasswordAuthentication": "no",
-            "PermitRootLogin": "no", 
+            "PermitRootLogin": "no",
             "Protocol": "2"
         }
-        
+
         for setting, expected in security_settings.items():
             if f"{setting} {expected}" in content or f"{setting}\t{expected}" in content:
                 print(f"SSH setting correct: {setting} = {expected}")
             else:
                 print(f"SSH setting needs review: {setting}")
 
-def scan_open_ports():
-    """Scan for open ports"""
-    print("Scanning open ports...")
-    
-    code, out, err = run_command("netstat -tuln")
-    if code == 0:
-        lines = out.split('\n')
-        open_ports = [line for line in lines if "LISTEN" in line]
-        
-        print(f"Open ports found: {len(open_ports)}")
-        for port in open_ports[:5]:
-            print(port)
 
 def check_sudo_users():
-    """Check sudo users"""
     print("Checking sudo users...")
-    
     code, out, err = run_command("getent group sudo")
     if code == 0:
         print("Sudo users group:")
         print(out.strip())
 
-def system_audit():
-    """Perform system security audit"""
-    print("Running system security audit...")
-    
-    audit_checks = [
-        ("SUID files", "find / -perm -4000 2>/dev/null | head -10"),
-        ("SGID files", "find / -perm -2000 2>/dev/null | head -10"),
-        ("World-writable files", "find / -perm -o+w 2>/dev/null | head -10"),
-        ("User cron jobs", "crontab -l 2>/dev/null || echo 'No user crontab'")
-    ]
-    
-    for check_name, cmd in audit_checks:
-        print(f"Checking: {check_name}")
-        code, out, err = run_command(cmd)
-        if out.strip():
-            print(out.strip())
-        else:
-            print("No issues found")
-
-def generate_report():
-    """Generate security report"""
-    print("Generating security report...")
-    
-    report = []
-    report.append("=" * 50)
-    report.append("System Security Report")
-    report.append("=" * 50)
-    
-    system = platform.system()
-    report.append(f"System: {system}")
-    report.append(f"User: {getpass.getuser()}")
-    
-    code, out, err = run_command("apt list --upgradable 2>/dev/null | wc -l")
-    updates = int(out.strip()) - 1 if out.strip().isdigit() else 0
-    report.append(f"Available updates: {updates}")
-    
-    code, out, err = run_command("ufw status")
-    firewall_status = "Active" if "active" in out else "Inactive"
-    report.append(f"Firewall: {firewall_status}")
-    
-    report_path = "/tmp/security_report.txt"
-    with open(report_path, 'w') as f:
-        f.write('\n'.join(report))
-    
-    print(f"Report saved to: {report_path}")
-
-def check_fail2ban():
-    """Check if fail2ban is installed and running"""
-    print("Checking fail2ban...")
-    
-    code, out, err = run_command("systemctl is-active fail2ban")
-    if code == 0 and "active" in out:
-        print("Fail2ban is running")
-    else:
-        print("Fail2ban is not installed or not running")
-
-def check_automatic_updates():
-    """Check if automatic updates are configured"""
-    print("Checking automatic updates...")
-    
-    code, out, err = run_command("systemctl is-enabled unattended-upgrades")
-    if code == 0 and "enabled" in out:
-        print("Automatic updates are enabled")
-    else:
-        print("Automatic updates are not enabled")
 
 def main():
-    """Main function"""
     print("OS Security Hardening Tool")
     print("=" * 40)
-    
+
     check_root()
-    system_info = get_system_info()
-    
+    get_system_info()
+
     while True:
         print("\nAvailable actions:")
         print("1. Update system")
         print("2. Check firewall")
         print("3. Check SSH security")
-        print("4. Scan open ports")
-        print("5. Check sudo users")
-        print("6. System security audit")
-        print("7. Check fail2ban")
-        print("8. Check automatic updates")
-        print("9. Generate security report")
-        print("10. Exit")
-        
-        choice = input("Enter your choice (1-10): ")
-        
+        print("4. Scan open ports (enhanced)")
+        print("5. Exit")
+
+        choice = input("Enter your choice (1-5): ")
+
         if choice == '1':
             update_system()
         elif choice == '2':
@@ -212,16 +211,6 @@ def main():
         elif choice == '4':
             scan_open_ports()
         elif choice == '5':
-            check_sudo_users()
-        elif choice == '6':
-            system_audit()
-        elif choice == '7':
-            check_fail2ban()
-        elif choice == '8':
-            check_automatic_updates()
-        elif choice == '9':
-            generate_report()
-        elif choice == '10':
             print("Exiting...")
             break
         else:
